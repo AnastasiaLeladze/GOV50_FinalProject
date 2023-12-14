@@ -1,14 +1,270 @@
 ---
-title: "Gov 50 Final Project"
-author: "Your Name Here"
-description: "My final project"
+title: "Russian Immigration and Georgian Inflation - Are They Connected?"
+author: "Anastasia Leladze"
+description: "My GOV 50 Final Project"
 output:
   distill::distill_article:
     self_contained: false
 ---
 
 
+## Introduction: Introducing Research Question
 
-## Project thoughts
+How did new migration patterns caused by the Russo-Ukrainian war affect inflation in Georgia? In this project, I will be exploring how the increased number of Russian immigrants affected Georgian economy, and especially the inflation rate. 
 
-I am interested in exploring data related to...
+The overall price level is increasing in Georgia at an accelerated rate lately. This process got more intense with the start of Russo-Ukrainian War, and particularly, with the huge inflow of Russian citizens into Georgia. A lot of these people came into the country to escape the economic sanctions against Russia, therefore, bringing a lof of cash in dollars to Georgia. I believe that after massively purchasing Georgian currency, the amount of cash grew in the economy, which then created increasing inflation rate.
+
+To check whether this is correct, I will need to look at exactly what the immigration patterns were (independent variable) and how the inflation rates responded to them over time (dependent variable). For both, I will rely not only on Georgian but also international statistical sources - mostly, "Geostats" and the World Bank. The outcome of our interest will be the change in the inflation rates caused by the migration. If my hypothesis is correct, the data will show that the inflation rate significantly increased with the amount of migrational inflow and that there is significant correlation between them; if I am wrong, the numbers will show inflation's independence from migration. While this seems a simple comparison, it will be very hard to account for the confounders in the economy, which usually exist in large numbers while dealing with unpredictable developing economies.
+
+```{r}
+## Loading packages
+
+library(tidyverse)
+library(readxl)
+library(infer)
+```
+
+
+## Exploring Independent Variable: Russian Immigration
+
+The Russo-Ukrainian War caused a lot of demographic turmoil in Eastern Europe. Especially after the introduction of sanctions against Russia and Putin's declaration of mass military mobilization in the country, many Russians started emigrating from homeland. Some escaping economic damage and some military service, Russian citizens took refuge in many neighboring countries, including a small republic of Georgia. 
+
+In the graph below, we can observe Russian immigration to Georgia over a few years. These numbers don't reflect Russian citizens who stayed in the country short-term - the graph shows only the people who stayed in Georgia for more than 7 months - so that we can assume that they had enough economic activity to influence our dependent variable of inflation rate. Unfortunately, I could not find monthly data for Russian immigration. Having monthly data would allow me to make more credible claims and observe the relationship better, however for now I will have to rely on the information below due to the lack of reliably structured data.
+
+```{r}
+
+## Loading the data
+
+Migration_citizenship_sex <- read_excel("Project_Data/Migration_citizenship_sex.xlsx")
+
+## Organizing, Visualizing
+
+Immigration_rus <- Migration_citizenship_sex |>
+  filter(Citizenship == "Russian Federation",
+         Year > 2016) |>
+  select(Year, Citizenship, Immigrants_total) 
+
+Immigration_rus |>
+  ggplot(mapping = aes(x = Year, y = Immigrants_total)) +
+  geom_col() +
+  labs(title = "Fig.1 - Russian Immigration to Georgia (2017-2022)",
+      y = "Number of Russian Immigrants")
+
+```
+Though there is no organized and detailed monthly data for immigration, it is known for sure that the peak of the Russian immigration was in September-October 2022, when Putin declared mobilization in the country. However, this time people came to Georgia mostly to escape military service. Before this, due to the heavy sanctioning of Russia, Georgia experienced an inflow of comparatively wealthy Russians who were trying to save their wealth in unsanctioned countries. Therefore, this first wave of wealthier individuals might have had economic influence as strong as the subsequent inflow of quantity-wise much more citizens. 
+
+## Exploring Dependent Variable: Inflation
+
+Now, let us look at the dependent variable of interest - Georgian inflation. Happily, I found more detailed, monthly data in this case. The original dataset provided the Consumer Price Index with 2010 as the base year. I changed the base year to 2020 to avoid large effects of very distinct global financial situation around 2010. 
+
+```{r}
+
+## Loading the data
+
+CPI_base_2010_Geostats_monthly <- read_xlsx("Project_Data/consumer-price-index-2010=100.xlsx")
+
+## Tidying dataset
+
+Inflation <- CPI_base_2010_Geostats_monthly |>
+  pivot_longer(names_to = "Month",
+               values_to = "Inflation",
+               cols = January:December) |>
+  filter(Year > 2016) 
+
+Inflation <- Inflation |>
+  mutate(Month = match(Month, month.name),
+         date = paste(Year, Month, "01", sep = "-"),
+         date = as.Date(date, format = "%Y-%m-%d"))
+
+## Changing the base year to 2020
+
+Inflation <- Inflation |>
+  mutate(inf_b_2020 = (Inflation / Inflation[Year == 2020]) * 100)
+
+## Visualizing
+
+Inflation_p <- ggplot(Inflation, aes(x=date, y=inf_b_2020)) +
+  geom_line() +
+  xlab("") +
+  labs(title = "Fig. 2 - Inflation in Georgia (2017-2023)", x = "Year", y = "Inflation Rate", caption = "Consumer Price Index (CPI), base year = 2020")
+
+Inflation_p
+```
+We see that the overall price level in Georgian economy is rising over time, and the slope is getting steeper after 2021. It is interesting what part of this, if any, is associated with Russian immigration into the country.
+
+
+## Step I: Exchange Rates
+
+According to my hypothesis, the inflationary dynamics were partly caused by the Russian migrants bringing USD to Georgia and using it to purchase GEL, creating excessive cash in the economy when done all at once. 
+
+To check this, the first step would be to look at GEL-USD exchange rates. If Lari was indeed purchased massively during this period, we should see Lari strengthening against US Dollar in this period. 
+
+```{r}
+## Loading the data
+
+GEL_USD <- read_xlsx("Project_Data/Table_Rate_AVG.xlsx")
+
+## Organizing, Visualizing
+
+GEL_USD1 <- GEL_USD |>
+  mutate(Month = match(Month, month.name),
+         date = paste(Year, Month, "01", sep = "-"),
+         date = as.Date(date, format = "%Y-%m-%d")) |>
+  filter(Year > 2016)
+
+ggplot(GEL_USD1, aes(x = date, y = `Avg. Exchange Rate`)) +
+  geom_line() +
+  xlab("") +
+  labs(title = "Fig. 3 - Average Exchange Rate GEL/USD (2017-2023)", x = "Year", y = "Avg. Exchange Rate, GEL/USD")
+  
+```
+As we see, the GEL/USD ratio is indeed steeply going down in 2022, reaching minimum in the end of the first quarter of 2023. This means that the currency did strengthen, from 1 USD being equal to ~3.4 GEL in 2021 to it equaling ~2.52 GEL in 2023. Technically, it is possible that this happened due to the Russian immigration, but we have to keep in mind that GEL strengthening starts in 2021, as per the graph. It is hard to attribute such a big process of currency strengthening to one single factor, especially without controlling for possible confounders. So, I will not base any strong opinions on this evidence. There seems to be something else also that started to cause GEL strengthening in 2021. 
+
+## Step II: Import Price Index
+
+To follow the storyline, it would be beneficial to check the prices on imports. Since Lari is getting stronger starting from 2021, it should be cheaper for the country to purchase goods and services produced abroad. To test for this, we are checking the import price index, which reflects the price level of imported goods and services.
+
+Every point in this data takes the same month of the previous year as a baseline for comparison. This was the most suitable dataset I could find for such case. 
+
+```{r}
+## Loading the data
+
+Import_Price_index <- read_xlsx("Project_Data/IMPORT-Same-month-of-the-previous-year=100.xlsx")
+
+## Organizing, Visualizing
+
+Import_Price_index1 <- Import_Price_index |>
+  mutate(Month = match(Month, month.name),
+         date = paste(Year, Month, "01", sep = "-"),
+         date = as.Date(date, format = "%Y-%m-%d"))
+
+Import_Price_index1 |>
+  ggplot(aes(x = date, y = `Import Price Index`)) +
+  geom_line() +
+  xlab("") +
+  labs(title = "Fig. 4 - Import Price Index in Georgia (2017-2023)", x = "Year", y = "Import Price Index",
+       caption = "Base = same month of the previous year")
+  
+```
+Indeed Fig. 4 confirms that the prices on imported goods decreased at the very time exchange rate was changing in GEL's favor. Georgia imports a lot of its goods, so we would expect this to have had positive effect on the overall price level; however, as we remember from Fig. 2, the overall price level in the economy - the CPI - was rising at this time. This rise in inflation rate might mean that the prices on domestically produced goods and services rose and pulled the overall level up.
+
+Let us look at the inflation rate in more detail.
+
+
+## Step III: Global Inflationary Environment
+
+When trying to understand the possible causes of inflation, there is a lot to keep in mind. Inflation can be affected by a lot of things which are terribly hard to control for, especially for a developing country like Georgia. To at least reduce the "noise" all these factors might be creating, it will be helpful to picture how Georgian inflation fit into the global inflationary environment at a time. By observing this, we will be able to deduct some global trends that took place and focus only on the dynamics that were specific for Georgian case. 
+
+US inflation rate will serve as a good proxy for global inflation due to its leading role in world economics. Let us visualize US and Georgian inflation rates on the same plane. 
+
+This dataset takes 1983 as a base year, which I will change to 2020, just like in Georgian dataset.
+
+```{r}
+
+## Loading the data
+
+US_Inflation <- read_xls("Project_Data/CPIAUCNS.xls")
+
+## Changing the base year, Organizing
+
+US_Inflation <- US_Inflation |>
+  mutate(cpi_b_2020 = (CPI / CPI[Year == 2020]) * 100) |>
+  filter(Year > 2016) |>
+  select(-date) |>
+  mutate(Month = match(Month, month.name),
+         date = paste(Year, Month, "01", sep = "-"),
+         date = as.Date(date, format = "%Y-%m-%d"))
+
+## Joining Datasets with US and Georgian Inflation, Visualizing
+
+left_join(Inflation, US_Inflation, by = c("date", "Year", "Month")) |>
+  select(-Inflation, -CPI) |>
+  rename(GEO = inf_b_2020,
+         US = cpi_b_2020) |>
+  ggplot(mapping = aes(x = date)) +
+  geom_line(aes(y = GEO, color = "GEO")) +
+  geom_line(aes(y = US, color = "US")) +
+  scale_color_manual(values = c("US" = "blue", "GEO" = "red")) +
+  labs(title = "Fig. 5 - Contrasting Georgian and US Inflation Rates (2017-2023)",
+       x = "Year",
+       y = "Inflation Rate",
+       caption = "CPI, Base = 2020",
+       color = "Countries")
+
+```
+Fig. 5 shows that the direction and pattern of Georgian and US inflation rates is quite similar. So, Georgia indeed is following some global inflationary tendencies. However, we also see that there is a lot of space between the two graphs - there is something else going on in Georgia that causes the inflation to be much worse at any point in time. I want to test whether this could be because of Russian immigration. For this, I will use hypothesis testing.
+
+
+## Step IV: Hypothesis Testing
+
+We will use hypothesis test to evaluate the relationship between inflation and immigration, to understand whether they are independent or not. By using the permutation test, we will assume at first that they are independent. This will be our null hypothesis. Our alternative hypothesis will be that increase in immigration leads to the increase in inflation rate. The test will give us the p-value, showing what is the probability of having this test statistic if null hypothesis is true. If the p-value is lower than 0.05, as standard, I will reject null hypothesis. So, significance level I will be using is 0.05.
+
+First of all, I will choose the test statistic I will be observing. I decided on correlation because I want to see if the correlation between these two variables is significant enough, so that later I can extend the analysis to causation. In order to conduct hypothesis test, I will need to find the observed test statistic first. So, let me find observed correlation from our data.
+
+```{r}
+
+## Joining the datasets to have every variable in the same place
+
+Inflation_adj <- Inflation |>
+  group_by(Year) |>
+  summarize(Inflation_annual = mean(Inflation)) |>
+  drop_na()
+
+Infl_Imm <- left_join(Inflation_adj, Immigration_rus, by = "Year") |>
+  select(-Citizenship)
+
+## Finding estimated correlation
+
+corr_est <- Infl_Imm |>
+  specify(Inflation_annual ~ Immigrants_total) |>
+  calculate(stat = "correlation") |>
+  rename(`Estimated Correlation` = stat)
+
+knitr::kable(corr_est, digits = 3)
+```
+
+As we see, the estimated correlation from the data I have is ~0.809. This means that this is strong positive correlation. But now, let us compare this number to a null hypothesis of no correlation. I will use permutation test to see how likely it is to get this estimated correlation value in the world where there is no correlation between these variables. 
+
+```{r}
+set.seed(02138)
+
+## Creating null distribution
+
+null_dist <- Infl_Imm |>
+  specify(Inflation_annual ~ Immigrants_total) |>
+  hypothesize(null = "independence") |>
+  generate(reps = 10000, type = "permute") |>
+  calculate(stat = "correlation")
+
+visualize(null_dist, bins = 10)
+```
+This distribution should be normal, but as we see, it is not. In the world where the null hypothesis of no correlation is true, the correlation value should be centered around 0. Here, it is a bit different. I was afraid when I took a very small sample of immigration-inflation relationship that something would go wrong. As I mentioned above, unfortunately, I could not find better, monthly data for this which would enable me to have enough information to draw some conclusions. However, let me continue still.
+
+Now, let us contrast our estimated correlation with null distribution.
+
+```{r}
+
+## Visualizing p-value
+
+null_dist |>
+  visualize(bins = 10) +
+  shade_p_value(obs_stat = corr_est, direction = "right")
+
+```
+```{r}
+## Getting the p-value
+
+null_dist |>
+  get_p_value(obs_stat = corr_est, direction = "right") |>
+  knitr::kable(digits = 3)
+```
+The p-value, the probability of getting our estimated correlation of ~0.809 in the world of no correlation, is ~0.102. Before the hypothesis test, I chose my significance level to be 0.05, as per standard. Since p-value of 0.102 > 0.05, I cannot reject the null hypothesis for now. According to this data, the null hypothesis of no relationship between inflation rate and immigration is most likely correct. This analysis rejects the alternative hypothesis I proposed in the beginning of the research.
+
+## Conclusion
+
+My research question asked whether rising inflation rate in Georgia was associated with increasing number of Russian immigrants coming into the country after the start of Russo-Ukrainian War. My exploratory analysis in the first half of the project confirmed most of my assumptions. Then I used hypothesis testing to evaluate the relationship between the two variables; however, from the beginning, I knew that my data would not be very suitable for this kind of analysis. As I mentioned above, I could not find any data that would give me monthly immigration rates; therefore, I started doing analysis from a very limited sample of just several entries. This did cause errors when, as we saw, the null distribution that had to be centered around 0, was not so. Therefore, even though my hypothesis test could not reject the null hypothesis now, I don't think it is reliable. If I had access to or opportunity of conducting better data collection, I would be able to draw some conclusions. However, for now, I don't think the result of my research is enough to conclude anything. 
+
+
+
+
+
